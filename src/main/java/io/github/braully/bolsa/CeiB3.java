@@ -18,8 +18,6 @@
  */
 package io.github.braully.bolsa;
 
-import static io.github.braully.bolsa.CeiB3.configuration;
-import static io.github.braully.bolsa.CeiB3.init;
 import io.github.braully.util.logutil;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -49,6 +47,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import picocli.CommandLine;
+import picocli.CommandLine.Command;
 
 /**
  *
@@ -59,10 +58,10 @@ import picocli.CommandLine;
  */
 public class CeiB3 {
 
-    final static String dateFormat = "dd/MM/yyyy";
-    final static SimpleDateFormat dateFormater = new SimpleDateFormat(dateFormat);
+    public static final String dateFormat = "dd/MM/yyyy";
+    public static final SimpleDateFormat dateFormater = new SimpleDateFormat(dateFormat);
 
-    static Map<String, String> cabecalhoToColuna = Map.of(
+    public static final Map<String, String> cabecalhoToColuna = Map.of(
             "Data do Negócio", "data",
             "Compra/Venda", "operacao",
             "Mercado", "mercado",
@@ -76,7 +75,8 @@ public class CeiB3 {
     );
 
     //Configuration
-    static class Configuration {
+    @Command(name = "ceibolsa", mixinStandardHelpOptions = true, version = "1.0")
+    class Configuration {
 
         @CommandLine.Option(names = {"-u", "--user"}, description = "CPF")
         String username;
@@ -111,42 +111,52 @@ public class CeiB3 {
     }
 
     //Configuration
-    static Configuration configuration = new Configuration();
-    static Connection connectionWeb;
-    static String strDataInicioDisponivel, strDataFimDisponivel, strConta;
-    static Map<String, String> agenteUltimoData = new HashMap<>();
-    static Map<String, String> agenteMap = new LinkedHashMap<>();
+    Configuration configuration = new Configuration();
+    Connection connectionWeb;
+    String strDataInicioDisponivel, strDataFimDisponivel, strConta;
+    Map<String, String> agenteUltimoData = new HashMap<>();
+    Map<String, String> agenteMap = new LinkedHashMap<>();
 
     public static void main(String... args) throws IOException, SQLException, ParseException {
-        CommandLine commandLine = new CommandLine(configuration);
-        commandLine.parseArgs(args);
-        //Username and password are required
-        if (!configuration.isValid()) {
-            logutil.debug("Usuario e senha não estão na linha de comando");
+        CeiB3 cei = new CeiB3();
 
+        CommandLine commandLine = new CommandLine(cei.configuration);
+        commandLine.parseArgs(args);
+        if (commandLine.isUsageHelpRequested()) {
+            commandLine.usage(System.out);
+            return;
+        } else if (commandLine.isVersionHelpRequested()) {
+            commandLine.printVersionHelp(commandLine.getOut());
+            return;
+        }
+
+        //Username and password are required
+        if (!cei.configuration.isValid()) {
+            logutil.debug("Usuario e senha não estão na linha de comando");
             try {
-                logutil.debug("tentando arquivo de configuração: " + configuration.fileConfig);
-                configuration.loadPropertiesFile();
+                logutil.debug("tentando arquivo de configuração: " + cei.configuration.fileConfig);
+                cei.configuration.loadPropertiesFile();
             } catch (Exception e) {
                 logutil.debug("no propertie file");
             }
-            if (!configuration.isValid()) {
+            if (!cei.configuration.isValid()) {
                 commandLine.usage(System.out);
                 return;
             }
         }
-        init();
-        login();
-        extractDataAgentes();
-        extractNegociacoes();
-        end();
+
+        cei.init();
+        cei.login();
+        cei.extractDataAgentes();
+        cei.extractNegociacoes();
+        cei.end();
     }
 
-    public static void carregarDataUltimasNegociacoesExtaidas() throws SQLException {
+    public void carregarDataUltimasNegociacoesExtaidas() throws SQLException {
         File file = new File(configuration.fileCsvDatabase);
         org.h2.Driver.load();
         if (file.exists()) {
-            java.sql.Connection conn = DriverManager.getConnection("jdbc:h2:.", "sa", "");
+            java.sql.Connection conn = DriverManager.getConnection("jdbc:h2:mem:.", "sa", "");
             Statement stat = conn.createStatement();
             ResultSet rs = stat.executeQuery("select agente, "
                     + " FORMATDATETIME(max(PARSEDATETIME(data,'dd/MM/yyyy')), 'dd/MM/yyyy') as max_data "
@@ -167,7 +177,7 @@ public class CeiB3 {
         }
     }
 
-    public static void extractDataAgentes() throws IOException {
+    public void extractDataAgentes() throws IOException {
         //Se sucesso entrar na tela de negociação de ativos
         System.out.println("Tela de negociacao");
         Document telaNegociacao = connectionWeb.newRequest()
@@ -188,13 +198,13 @@ public class CeiB3 {
         }
     }
 
-    public static void init() throws SQLException {
+    public void init() throws SQLException {
         connectionWeb = Jsoup.connect(configuration.loginUrl);
         carregarDataUltimasNegociacoesExtaidas();
 //        initDBCSV();
     }
 
-    public static void login() throws IOException {
+    public void login() throws IOException {
         System.out.println("Login");
         Document paginaInicial = connectionWeb.get();
         //saveToFile(paginaInicial, "login.html");
@@ -212,20 +222,20 @@ public class CeiB3 {
 //        saveToFile(resultadoLogin, "home.html");
     }
 
-    static void extrairValoresEstadoPagina(Document pagina, Map<String, String> estado) {
+    protected void extrairValoresEstadoPagina(Document pagina, Map<String, String> estado) {
         estado.put("__VIEWSTATE", pagina.getElementById("__VIEWSTATE").val());
         estado.put("__VIEWSTATEGENERATOR", pagina.getElementById("__VIEWSTATEGENERATOR").val());
         estado.put("__EVENTVALIDATION", pagina.getElementById("__EVENTVALIDATION").val());
     }
 
-    protected static void saveToFile(Document pagina, String arquivo) throws IOException {
+    protected void saveToFile(Document pagina, String arquivo) throws IOException {
         System.out.println("save file: " + arquivo);
         BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(arquivo));
         bufferedWriter.write(pagina.toString());
         bufferedWriter.close();
     }
 
-    protected static void appendRawCsv(List<String> cabecalho, List<List<String>> linhas) throws IOException {
+    protected void appendRawCsv(List<String> cabecalho, List<List<String>> linhas) throws IOException {
         File file = new File(configuration.fileCsvDatabase);
         FileWriter writer;
         if (file.exists()) {
@@ -245,7 +255,7 @@ public class CeiB3 {
         writer.close();
     }
 
-    protected static void extractNegociacoes() throws IOException, ParseException {
+    protected void extractNegociacoes() throws IOException, ParseException {
         for (String agente : agenteMap.keySet()) {
             var telaNegociacao = connectionWeb.newRequest()
                     .referrer(configuration.negociacaoUrl)
@@ -279,8 +289,7 @@ public class CeiB3 {
 
             for (Element contaElement : contasOptions) {
                 strConta = contaElement.val();
-                logutil.info("buscando negociacoes: conta: " + strConta
-                        + " do agente: " + agente + " de " + dataInicio + " até " + strDataFimDisponivel);
+                logutil.info(String.format("buscando dados agente: %-18s de até %-10s ", (agente + "-" + strConta), dataInicio, strDataFimDisponivel));
                 extrairValoresEstadoPagina(telaNegociacao, payload);
                 payload.put("ctl00$ContentPlaceHolder1$ddlContas", strConta);
                 payload.put("ctl00$ContentPlaceHolder1$btnConsultar", "Consultar");
@@ -339,11 +348,11 @@ public class CeiB3 {
         }
     }
 
-    protected static void end() {
+    protected void end() {
 
     }
 
-    protected static String toColuna(String c) {
+    protected String toColuna(String c) {
         String ret = cabecalhoToColuna.get(c);
         if (ret == null) {
             ret = c.toLowerCase();
@@ -351,7 +360,7 @@ public class CeiB3 {
         return ret;
     }
 
-    private static String maxDataInicio(String strDataDisponivel, String agente) throws ParseException {
+    protected String maxDataInicio(String strDataDisponivel, String agente) throws ParseException {
         if (!agenteUltimoData.containsKey(agente)) {
             return strDataDisponivel;
         }

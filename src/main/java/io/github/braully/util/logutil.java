@@ -51,7 +51,7 @@ public class logutil {
         Configurator.reconfigure(builder.build());
     }
 
-    public static Logger log = LogManager.getLogger("com.github.braully");
+    public static Logger log = LogManager.getLogger("io.github.braully");
 
     public static void setInfoLevel() {
         Configurator.setLevel(log.getName(), Level.INFO);
