@@ -22,12 +22,13 @@ java -jar target/bolsa-cvm-crawler.jar
 - password
 
 ## Arquivo de configuração [opcional]
+
 Arquivo padrão 'configuration.properties' na pasta corrente.
 
-Exemplo:
-username=11111111111
-password=O1234%a
-fileCsvDatabase=dados/bd.csv
+Exemplo:  
+username=11111111111  
+password=O1234%a  
+fileCsvDatabase=dados/bd.csv  
 
 # Saída
 Todas as negociações seram salvas em um arquivo csv,
