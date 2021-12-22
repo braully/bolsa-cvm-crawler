@@ -19,11 +19,7 @@
 package io.github.braully.bolsa;
 
 import io.github.braully.util.logutil;
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -39,15 +35,10 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
-import java.util.stream.Collectors;
-import org.jsoup.Connection;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
-import picocli.CommandLine;
-import picocli.CommandLine.Command;
 
 /**
  *
@@ -56,10 +47,7 @@ import picocli.CommandLine.Command;
  * Referências: - https://stackabuse.com/web-scraping-the-java-way/ -
  *
  */
-public class CeiB3 {
-
-    public static final String dateFormat = "dd/MM/yyyy";
-    public static final SimpleDateFormat dateFormater = new SimpleDateFormat(dateFormat);
+public class Cei extends Scrapper {
 
     public static final Map<String, String> cabecalhoToColuna = Map.of(
             "Data do Negócio", "data",
@@ -74,115 +62,69 @@ public class CeiB3 {
             "Fator de Cotação", "fator"
     );
 
-    //Configuration
-    @Command(name = "ceibolsa", mixinStandardHelpOptions = true, version = "1.0")
-    class Configuration {
+    String loginUrl = "https://ceiapp.b3.com.br/cei_responsivo/login.aspx";
+    String homeUrl = "https://ceiapp.b3.com.br/CEI_Responsivo/home.aspx";
+    String negociacaoUrl = "https://ceiapp.b3.com.br/CEI_Responsivo/negociacao-de-ativos.aspx";
 
-        @CommandLine.Option(names = {"-u", "--user"}, description = "CPF")
-        String username;
-        @CommandLine.Option(names = {"-p", "--password"}, description = "senha")
-        String password;
-        @CommandLine.Option(names = {"-l", "--login-url"}, description = "Url de Login")
-        String loginUrl = "https://ceiapp.b3.com.br/cei_responsivo/login.aspx";
-        @CommandLine.Option(names = {"-i", "--home-url"}, description = "Url do home")
-        String homeUrl = "https://ceiapp.b3.com.br/CEI_Responsivo/home.aspx";
-        @CommandLine.Option(names = {"-n", "--negociacao-url"}, description = "Url da tela de negociacao")
-        String negociacaoUrl = "https://ceiapp.b3.com.br/CEI_Responsivo/negociacao-de-ativos.aspx";
-        @CommandLine.Option(names = {"-d", "--csv-database"}, description = "Arquivo que guarda o CSV Database")
-        String fileCsvDatabase = "negociacao_ceib3.csv";
-        @CommandLine.Option(names = {"-c", "--config"}, description = "Arquivo de configuração com os mesmos parametros da linha de comando")
-        String fileConfig = "configuration.properties";
-
-        void loadPropertiesFile() throws FileNotFoundException, IOException {
-            Properties properties = new Properties();
-            properties.load(new FileReader(configuration.fileConfig));
-            username = properties.getProperty("username");
-            password = properties.getProperty("password");
-            fileCsvDatabase = properties.getProperty("fileCsvDatabase", fileCsvDatabase);
-            loginUrl = properties.getProperty("loginUrl", loginUrl);
-            homeUrl = properties.getProperty("homeUrl", homeUrl);
-            negociacaoUrl = properties.getProperty("negociacaoUrl", negociacaoUrl);
-        }
-
-        boolean isValid() {
-            return !(configuration.username == null || configuration.username.isBlank()
-                    || configuration.password == null || configuration.password.isBlank());
-        }
+    //Default value
+    {
+        configuration.fileCsvDatabase = "negociacao_ceib3.csv";
     }
 
-    //Configuration
-    Configuration configuration = new Configuration();
-    Connection connectionWeb;
     String strDataInicioDisponivel, strDataFimDisponivel, strConta;
     Map<String, String> agenteUltimoData = new HashMap<>();
     Map<String, String> agenteMap = new LinkedHashMap<>();
 
     public static void main(String... args) throws IOException, SQLException, ParseException {
-        CeiB3 cei = new CeiB3();
-
-        CommandLine commandLine = new CommandLine(cei.configuration);
-        commandLine.parseArgs(args);
-        if (commandLine.isUsageHelpRequested()) {
-            commandLine.usage(System.out);
-            return;
-        } else if (commandLine.isVersionHelpRequested()) {
-            commandLine.printVersionHelp(commandLine.getOut());
-            return;
-        }
-
-        //Username and password are required
-        if (!cei.configuration.isValid()) {
-            logutil.debug("Usuario e senha não estão na linha de comando");
-            try {
-                logutil.debug("tentando arquivo de configuração: " + cei.configuration.fileConfig);
-                cei.configuration.loadPropertiesFile();
-            } catch (Exception e) {
-                logutil.debug("no propertie file");
-            }
-            if (!cei.configuration.isValid()) {
-                commandLine.usage(System.out);
-                return;
-            }
-        }
-
-        cei.init();
-        cei.login();
-        cei.extractDataAgentes();
-        cei.extractNegociacoes();
-        cei.end();
+        Cei cei = new Cei();
+        cei.run(args);
     }
 
-    public void carregarDataUltimasNegociacoesExtaidas() throws SQLException {
+    public void execute() {
+        try {
+            extractDataAgentes();
+            extractNegociacoes();
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public void carregarDataUltimasNegociacoesExtaidas() {
         File file = new File(configuration.fileCsvDatabase);
         org.h2.Driver.load();
-        if (file.exists()) {
-            java.sql.Connection conn = DriverManager.getConnection("jdbc:h2:mem:.", "sa", "");
-            Statement stat = conn.createStatement();
-            ResultSet rs = stat.executeQuery("select agente, "
-                    + " FORMATDATETIME(max(PARSEDATETIME(data,'dd/MM/yyyy')), 'dd/MM/yyyy') as max_data "
-                    + " from csvread('" + file.getAbsolutePath() + "') "
-                    + " group by agente");
-            ResultSetMetaData metaData = rs.getMetaData();
-            while (rs.next()) {
-                agenteUltimoData.put(rs.getString(1), rs.getString(2));
-                for (int i = 0; i < metaData.getColumnCount(); i++) {
-                    logutil.debug(metaData.getColumnLabel(i + 1) + ": "
-                            + rs.getString(i + 1));
+        try {
+            if (file.exists()) {
+                java.sql.Connection conn = DriverManager.getConnection("jdbc:h2:mem:.", "sa", "");
+                Statement stat = conn.createStatement();
+                ResultSet rs = stat.executeQuery("select agente, "
+                        + " FORMATDATETIME(max(PARSEDATETIME(data,'dd/MM/yyyy')), 'dd/MM/yyyy') as max_data "
+                        + " from csvread('" + file.getAbsolutePath() + "') "
+                        + " group by agente");
+                ResultSetMetaData metaData = rs.getMetaData();
+                while (rs.next()) {
+                    agenteUltimoData.put(rs.getString(1), rs.getString(2));
+                    for (int i = 0; i < metaData.getColumnCount(); i++) {
+                        logutil.debug(metaData.getColumnLabel(i + 1) + ": "
+                                + rs.getString(i + 1));
+                    }
                 }
+                //logutil.info
+                System.out.println("ultimas negociacoes carregadas: " + agenteUltimoData);
+            } else {
+                logutil.debug("database not found: it will be created");
             }
-            //logutil.info
-            System.out.println("ultimas negociacoes carregadas: " + agenteUltimoData);
-        } else {
-            logutil.debug("database not found: it will be created");
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
     public void extractDataAgentes() throws IOException {
         //Se sucesso entrar na tela de negociação de ativos
         System.out.println("Tela de negociacao");
-        Document telaNegociacao = connectionWeb.newRequest()
-                .referrer(configuration.homeUrl)
-                .url(configuration.negociacaoUrl).get();
+        Document telaNegociacao;
+        telaNegociacao = connectionWeb.newRequest()
+                .referrer(homeUrl)
+                .url(negociacaoUrl).get();
 //        saveToFile(telaNegociacao, "negociacao.html");
         strDataInicioDisponivel = telaNegociacao.getElementById("ctl00_ContentPlaceHolder1_txtDataDeBolsa").val();
         strDataFimDisponivel = telaNegociacao.getElementById("ctl00_ContentPlaceHolder1_txtDataAteBolsa").val();
@@ -198,28 +140,33 @@ public class CeiB3 {
         }
     }
 
-    public void init() throws SQLException {
-        connectionWeb = Jsoup.connect(configuration.loginUrl);
+    public void init() {
+        connectionWeb = Jsoup.connect(loginUrl);
         carregarDataUltimasNegociacoesExtaidas();
 //        initDBCSV();
     }
 
-    public void login() throws IOException {
+    public void login() {
         System.out.println("Login");
-        Document paginaInicial = connectionWeb.get();
-        //saveToFile(paginaInicial, "login.html");
-        var payload = new HashMap<String, String>();
-        extrairValoresEstadoPagina(paginaInicial, payload);
-        payload.putAll(Map.of("__EVENTTARGET", "",
-                "ctl00$ContentPlaceHolder1$txtLogin", configuration.username,
-                "ctl00$ContentPlaceHolder1$txtSenha", configuration.password,
-                "ctl00$ContentPlaceHolder1$btnLogar", "Entrar"
-        ));
-        Document resultadoLogin = connectionWeb.newRequest()
-                .data(payload)
-                .referrer(configuration.loginUrl)
-                .url(configuration.loginUrl).post();
+        Document paginaInicial;
+        try {
+            paginaInicial = connectionWeb.get();
+            //saveToFile(paginaInicial, "login.html");
+            var payload = new HashMap<String, String>();
+            extrairValoresEstadoPagina(paginaInicial, payload);
+            payload.putAll(Map.of("__EVENTTARGET", "",
+                    "ctl00$ContentPlaceHolder1$txtLogin", configuration.username,
+                    "ctl00$ContentPlaceHolder1$txtSenha", configuration.password,
+                    "ctl00$ContentPlaceHolder1$btnLogar", "Entrar"
+            ));
+            Document resultadoLogin = connectionWeb.newRequest()
+                    .data(payload)
+                    .referrer(loginUrl)
+                    .url(loginUrl).post();
 //        saveToFile(resultadoLogin, "home.html");
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     protected void extrairValoresEstadoPagina(Document pagina, Map<String, String> estado) {
@@ -228,38 +175,11 @@ public class CeiB3 {
         estado.put("__EVENTVALIDATION", pagina.getElementById("__EVENTVALIDATION").val());
     }
 
-    protected void saveToFile(Document pagina, String arquivo) throws IOException {
-        System.out.println("save file: " + arquivo);
-        BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(arquivo));
-        bufferedWriter.write(pagina.toString());
-        bufferedWriter.close();
-    }
-
-    protected void appendRawCsv(List<String> cabecalho, List<List<String>> linhas) throws IOException {
-        File file = new File(configuration.fileCsvDatabase);
-        FileWriter writer;
-        if (file.exists()) {
-            writer = new FileWriter(configuration.fileCsvDatabase, true);
-        } else {
-            writer = new FileWriter(configuration.fileCsvDatabase);
-            writer.write("#"); // newline
-            writer.write(cabecalho.stream().collect(Collectors.joining(",")));
-            writer.write("\n"); // newline
-        }
-
-        for (List<String> linha : linhas) {
-            linha.replaceAll(c -> c.replaceAll(",", ""));
-            writer.append(linha.stream().collect(Collectors.joining(",")));
-            writer.append("\n"); // newline
-        }
-        writer.close();
-    }
-
     protected void extractNegociacoes() throws IOException, ParseException {
         for (String agente : agenteMap.keySet()) {
             var telaNegociacao = connectionWeb.newRequest()
-                    .referrer(configuration.negociacaoUrl)
-                    .url(configuration.negociacaoUrl).get();
+                    .referrer(negociacaoUrl)
+                    .url(negociacaoUrl).get();
 
             strConta = "0";
             var payload = new HashMap<String, String>();
@@ -278,8 +198,8 @@ public class CeiB3 {
             );
 
             telaNegociacao = connectionWeb.newRequest()
-                    .referrer(configuration.negociacaoUrl)
-                    .url(configuration.negociacaoUrl)
+                    .referrer(negociacaoUrl)
+                    .url(negociacaoUrl)
                     .data(payload).post();
 //            saveToFile(telaNegociacao, "negociacao-" + agente + ".html");
 
@@ -295,8 +215,8 @@ public class CeiB3 {
                 payload.put("ctl00$ContentPlaceHolder1$btnConsultar", "Consultar");
 
                 telaNegociacao = connectionWeb.newRequest()
-                        .referrer(configuration.negociacaoUrl)
-                        .url(configuration.negociacaoUrl)
+                        .referrer(negociacaoUrl)
+                        .url(negociacaoUrl)
                         .data(payload).post();
 
                 //saveToFile(telaNegociacao, "negociacao-" + agente + "-" + strConta + ".html");
@@ -340,8 +260,8 @@ public class CeiB3 {
                 //Se tiver mais de um agente de custodia, resetar a consulta entrando novamente na pagina
                 if (contasOptions.size() > 1) {
                     telaNegociacao = connectionWeb.newRequest()
-                            .referrer(configuration.negociacaoUrl)
-                            .url(configuration.negociacaoUrl).get();
+                            .referrer(negociacaoUrl)
+                            .url(negociacaoUrl).get();
                 }
 
             }
@@ -379,4 +299,5 @@ public class CeiB3 {
         String format = dateFormater.format(max);
         return format;
     }
+
 }

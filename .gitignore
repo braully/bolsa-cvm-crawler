@@ -11,3 +11,5 @@ buildNumber.properties
 .mvn/wrapper/maven-wrapper.jar
 /negociacao_ceib3.csv
 /configuration.properties
+/tmp/
+/saldo_conta.csv
