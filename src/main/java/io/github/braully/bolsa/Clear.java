@@ -36,7 +36,11 @@ import org.openqa.selenium.firefox.FirefoxOptions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
 /**
- *
+ * Realiza scrap do saldo da conta na clear corretora, 
+ * utilizando a biblioteca de automação Selenium.
+ * Atenção todo o código desse projeto é meramente
+ * acadêmcio, não deve ser utilizado para outro fim,
+ * sob pena e responsabilildade do usuário.
  * @author Braully Rocha da Silva
  */
 public class Clear extends Scrapper {
@@ -108,9 +112,12 @@ public class Clear extends Scrapper {
             WebElement bank = driver.findElement(By.cssSelector(".bank_number"));
             WebElement agency = driver.findElement(By.cssSelector(".bank_agency"));
             WebElement account = driver.findElement(By.cssSelector(".bank_account"));
-//            WebElement saldo = driver.findElement(By.cssSelector(".d0_val"));
-//            WebElement saldoD1 = driver.findElement(By.cssSelector(".d1_val"));
-//            WebElement saldoD2 = driver.findElement(By.cssSelector(".d2_val"));
+            //For future use:
+            /*
+            WebElement saldo = driver.findElement(By.cssSelector(".d0_val"));
+            WebElement saldoD1 = driver.findElement(By.cssSelector(".d1_val"));
+            WebElement saldoD2 = driver.findElement(By.cssSelector(".d2_val"));
+             */
             WebElement saldoTotal = driver.findElement(By.cssSelector(".total_val"));
             List<String> linha = new ArrayList<>();
             //TODO: Generate id on database csv, snowflake strategy

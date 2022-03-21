@@ -1,8 +1,21 @@
 # Crawler para CVM e Bolsa Brasileira
 
-Baixa as informações de negociação de ativos e salva em um arquivo CSV,
-execuções sucessivas iram buscar as novas negociações, 
-a partir das datas de das ultimas infomrações no arquivo CSV.
+Esse projeto visa realizar scrap de dados da bolsa brasileira, e algumas informações de algumas corretoras, para criação de um banco de dados local,
+com informações finaceiras.
+
+Atenção todo o código desse projeto é meramente
+acadêmcio, não deve ser utilizado para outro fim,
+sob pena e responsabilildade do usuário.
+
+## Implementações:
+ - [Cei.java](https://github.com/braully/bolsa-cvm-crawler/blob/main/src/main/java/io/github/braully/bolsa/Cei.java): Implementação de um scrap das informações de negociação de ativos da bolsa brasileira, utiliza JSOUP e salva as informações em um arquivo csv.
+ - [Clear.java](https://github.com/braully/bolsa-cvm-crawler/blob/main/src/main/java/io/github/braully/bolsa/Clear.java): Implementação de um scrap das informações de negociação de ativos da bolsa brasileira, utiliza SELENIUM e salva as informações em um arquivo csv.
+
+
+## Principais bibliotecas
+- PicoCLI
+- JSOUP
+- Selenium
 
 ## Compilação
 
@@ -23,14 +36,22 @@ java -jar target/bolsa-cvm-crawler.jar
 
 ## Arquivo de configuração [opcional]
 
-Arquivo padrão 'configuration.properties' na pasta corrente.
+Arquivo padrão na pasta corrente.
 
-Exemplo:  
-username=11111111111  
-password=O1234%a  
-fileCsvDatabase=dados/bd.csv  
+Exemplo: 'configuration.properties'
+```
+#CEI APP
+cei.username=012.345.678-90
+cei.password=P@ssW0d
+
+#Clear 
+clear.username=012.345.678-90
+clear.dob=01/01/1981
+clear.password=P@ssW0d
+```
 
 # Saída
+
 Todas as negociações seram salvas em um arquivo csv,
 por padrão negociacao_ceib3.csv.
 
